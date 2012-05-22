@@ -25,7 +25,7 @@ class RackRscript
     default_routes(@params)
   end
 
-  def call(env)
+	def call(env)
     request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
 
     log Time.now.to_s + ": " + request
@@ -34,9 +34,23 @@ class RackRscript
 
     content_type ||= 'text/html'
     status_code ||= 200
-    [status_code, {"Content-Type" => content_type}, [content]]
-  end
+	  [status_code, {"Content-Type" => content_type}, [content]]
+	end
 
+  private
+
+  def default_routes(params)
+
+    get '/do/:package/:job' do |package,job|
+      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
+    end
+    
+    get '/do/:package/:job/*' do |package, job|
+      raw_args = params[:splat]
+      args = raw_args.join.split('/')[1..-1]
+      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
+    end        
+  end
 
   def run_job(url, jobs, params={}, *qargs)
     if params[:splat] and params[:splat].length > 0 then
@@ -63,22 +77,7 @@ class RackRscript
       ($!).to_s
     end
   end
-  
-  private
 
-  def default_routes(params)
-
-    get '/do/:package/:job' do |package,job|
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
-    end
-    
-    get '/do/:package/:job/*' do |package, job|
-      raw_args = params[:splat]
-      args = raw_args.join.split('/')[1..-1]
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
-    end        
-  end
-  
   def log(msg)
     if @log == true then
       @logger.debug msg
