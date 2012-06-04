@@ -53,7 +53,7 @@ class RackRscript
     
     begin
       r = eval result
-      @params = {}
+      # jr040612 @params = {}
       return r
 
     rescue Exception => e  
