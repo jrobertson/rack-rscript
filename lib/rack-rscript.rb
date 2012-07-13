@@ -5,12 +5,15 @@
 
 require 'rscript'
 require 'app-routes'
+require 'requestor'
+require 'logger'
 
 class RackRscript
   include AppRoutes
 
   def initialize(raw_opts={})
-    
+    @params = {}
+
     opts = {logfile: '', logrotate: 'daily', pkg_src: ''}.merge(raw_opts)
     @url_base = opts[:pkg_src] # web server serving the RSF files
     @url_base += '/' unless @url_base[-1] == '/'
@@ -28,9 +31,13 @@ class RackRscript
   def call(env)
     request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
 
-    log Time.now.to_s + ": " + request
+    log Time.now.to_s + ": " + request.inspect
     content, content_type, status_code = run_route(request)
-    content, status_code  = "404: page not found", 404 if content.nil?
+    if content.nil? then
+      e = $!
+      log(e) if e
+      content, status_code  = "404: page not found", 404 
+    end
 
     content_type ||= 'text/html'
     status_code ||= 200
@@ -39,13 +46,15 @@ class RackRscript
 
 
   def run_job(url, jobs, params={}, *qargs)
-    if params[:splat] and params[:splat].length > 0 then
-      h = params[:splat].first[1..-1].split('&').inject({}) do |r,x| 
+
+    if @params[:splat] and @params[:splat].length > 0 then
+      h = @params[:splat].first[1..-1].split('&').inject({}) do |r,x| 
         k, v = x.split('=')
         r.merge(k.to_sym => v)
       end
-      params.merge! h
+      @params.merge! h
     end
+
 
     result, args = RScript.new.read([url, jobs.split(/\s/), \
       qargs].flatten)
@@ -53,14 +62,20 @@ class RackRscript
     
     begin
       r = eval result
-      # jr040612 @params = {}
+      #@params = {}
       return r
 
     rescue Exception => e  
-
+      @params = {}
       err_label = e.message.to_s + " :: \n" + e.backtrace.join("\n")      
       log(err_label)
-      ($!).to_s
+    end
+    
+  end
+  
+  def log(msg)
+    if @log == true then
+      @logger.debug msg
     end
   end
   
@@ -79,9 +94,5 @@ class RackRscript
     end        
   end
   
-  def log(msg)
-    if @log == true then
-      @logger.debug msg
-    end
-  end
+   
 end
