@@ -47,14 +47,19 @@ class RackRscript
 
   def run_job(url, jobs, params={}, *qargs)
 
+    if @params[:splat] then
+      @params.each do  |k,v|
+        @params.delete k unless k == :splat or k == :package or k == :job or k == :captures
+      end
+    end  
+    
     if @params[:splat] and @params[:splat].length > 0 then
       h = @params[:splat].first[1..-1].split('&').inject({}) do |r,x| 
         k, v = x.split('=')
-        r.merge(k.to_sym => v)
+        r.merge(k[/\w+$/].to_sym => v)
       end
       @params.merge! h
     end
-
 
     result, args = RScript.new.read([url, jobs.split(/\s/), \
       qargs].flatten)
@@ -62,7 +67,6 @@ class RackRscript
     
     begin
       r = eval result
-      #@params = {}
       return r
 
     rescue Exception => e  
@@ -89,7 +93,7 @@ class RackRscript
     
     get '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
-      args = raw_args.join.split('/')[1..-1]
+      args = raw_args.first[1..-1][/.[\/\w]+/].split('/')
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
     end        
   end
