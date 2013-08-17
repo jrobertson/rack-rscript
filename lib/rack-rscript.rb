@@ -5,8 +5,8 @@
 
 require 'rscript'
 require 'app-routes'
-require 'requestor'
 require 'logger'
+require 'haml'
 
 class Redirect
   attr_reader :to_url
@@ -34,7 +34,7 @@ class RackRscript
     end
 
     super() # required for app-routes initialize method to exectue
-    default_routes(@params)
+    default_routes(@env, @params)
   end
 
   def call(env)
@@ -43,6 +43,8 @@ class RackRscript
 
     log "_: " + env.keys.inspect
     log Time.now.to_s + "_: " + env.inspect
+
+    default_routes(env,@params)
     content, content_type, status_code = run_route(request)        
 
     if content.is_a? Redirect then
@@ -57,9 +59,16 @@ class RackRscript
         log(e) if e
         content, status_code  = "404: page not found", 404             
       end      
+
+      haml_proc = lambda{|c, ct| [Haml::Engine.new(c).render, 'text/html']}
       
+      ct_list = {
+        'text/html' => lambda{|c, ct| [c,ct]},
+        'text/haml' => haml_proc, 'application/haml' => haml_proc
+      }
       content_type ||= 'text/html'
-      status_code ||= 200      
+      status_code ||= 200                  
+      content, content_type = ct_list[content_type].call(content, content_type)      
       
       [status_code, {"Content-Type" => content_type}, [content]]
     end
@@ -67,7 +76,7 @@ class RackRscript
 
 
   def run_job(url, jobs, params={}, *qargs)
-    
+
     if @params[:splat] then
       @params.each do  |k,v|
         @params.delete k unless k == :splat or k == :package or k == :job or k == :captures
@@ -80,10 +89,11 @@ class RackRscript
         v ? r.merge(k[/\w+$/].to_sym => v) : r
       end
       @params.merge! h
-    end    
+    end
     
     result, args = RScript.new.read([url, jobs.split(/\s/), \
       qargs].flatten)
+
     rws = self
     
     begin
@@ -110,7 +120,7 @@ class RackRscript
   
   private
 
-  def default_routes(params)
+  def default_routes(env, params)
 
     get '/do/:package/:job' do |package,job|
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
