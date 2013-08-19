@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'rack-rscript'
-  s.version = '0.5.1'
+  s.version = '0.5.2'
   s.summary = 'Rack-Rscript is a light-weight alternative to Sinatra-Rscript.'
   s.authors = ['James Robertson']
   s.files = Dir['lib/**/*.rb']
@@ -8,6 +8,8 @@ Gem::Specification.new do |s|
   s.add_dependency('app-routes')
   s.add_dependency('rscript') 
   s.add_dependency('haml') 
+  s.add_dependency('tilt') 
+  s.add_dependency('slim') 
   s.signing_key = '../privatekeys/rack-rscript.pem'
   s.cert_chain  = ['gem-public_cert.pem']
   s.license = 'MIT'
