@@ -7,6 +7,8 @@ require 'rscript'
 require 'app-routes'
 require 'logger'
 require 'haml'
+require 'slim'
+require 'tilt'
 
 class Redirect
   attr_reader :to_url
@@ -21,6 +23,9 @@ class RackRscript
 
   def initialize(raw_opts={})
     @params = {}
+    @templates = {}
+    
+    @rrscript = RScript.new
     
     opts = {logfile: '', logrotate: 'daily', pkg_src: ''}.merge(raw_opts)
     @url_base = opts[:pkg_src] # web server serving the RSF files
@@ -60,11 +65,20 @@ class RackRscript
         content, status_code  = "404: page not found", 404             
       end      
 
-      haml_proc = lambda{|c, ct| [Haml::Engine.new(c).render, 'text/html']}
+      tilt_proc = lambda do |s, content_type| 
+        type = content_type[/[^\/]+$/]
+        s = [s,{}] unless s.is_a? Array
+        content, options = s
+        [Tilt[type].new(options) {|x| content}.render, 'text/html']
+      end
+      
+      passthru_proc = lambda{|c, ct| [c,ct]}
       
       ct_list = {
-        'text/html' => lambda{|c, ct| [c,ct]},
-        'text/haml' => haml_proc, 'application/haml' => haml_proc
+        'text/html' => passthru_proc,
+        'text/haml' => tilt_proc,
+        'text/slim' => tilt_proc,
+        'text/plain' => passthru_proc
       }
       content_type ||= 'text/html'
       status_code ||= 200                  
@@ -91,7 +105,7 @@ class RackRscript
       @params.merge! h
     end
     
-    result, args = RScript.new.read([url, jobs.split(/\s/), \
+    result, args = @rrscript.read([url, jobs.split(/\s/), \
       qargs].flatten)
 
     rws = self
@@ -117,6 +131,14 @@ class RackRscript
   def redirect(url)
     Redirect.new url
   end
+
+  def haml(name,options={})    
+    render name, :haml
+  end            
+            
+  def slim(name,options={})
+    render name, :slim
+  end    
   
   private
 
@@ -132,6 +154,27 @@ class RackRscript
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
     end
 
+    get '/source/:package/:job' do |package,job|
+      url = "%s%s.rsf" % [@url_base, package]
+      [@rrscript.read([url, '//job:' + job]).first, 'text/plain']
+    end    
+
+     get '/source/:package' do |package,job|
+       url = "%s%s.rsf" % [@url_base, package]
+       [open(url,'User-Agent' => 'Rack-Rscript v0.5'){|x| x.read },'text/plain']
+    end    
+    
+
   end
+
+  def render(s,type, options={})
+    layout = Tilt[type.to_s].new(options) {|x| @templates[:layout]}
+    template = Tilt[type.to_s].new(options) {|x| @templates[name]}
+    layout.render{ template.render }
+  end            
+  
+  def template(name,&blk)
+    @templates.merge!({name => blk.call})
+  end                  
      
 end
