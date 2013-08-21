@@ -167,10 +167,12 @@ class RackRscript
 
   end
 
-  def render(name, type, options={})
+  def render(name, type, opt={})
+    options = {locals: {}}.merge!(opt)
+    locals = options.delete :locals
     layout = Tilt[type.to_s].new(options) {|x| @templates[:layout][:content]}
     template = Tilt[type.to_s].new(options) {|x| @templates[name][:content]}
-    layout.render{ template.render(self, options)}
+    layout.render{ template.render(self, locals)}
   end            
   
   def template(name, type=nil, &blk)
@@ -178,9 +180,10 @@ class RackRscript
   end                  
 
   def tilt(name, options={})
-    
+    options = {locals: {}}.merge!(opt)
+    locals = options.delete :locals
     layout = Tilt[@templates[:layout][:type].to_s].new(options) {|x| @templates[:layout][:content]}
     template = Tilt[@templates[name][:type].to_s].new(options) {|x| @templates[name][:content]}
-    layout.render{ template.render(self, options)}
+    layout.render{ template.render(self, locals)}
   end    
 end

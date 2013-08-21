@@ -88,6 +88,9 @@ class RackRscript
     end
   end
 
+  def clear_cache()
+    @rrscript.reset
+  end
 
   def run_job(url, jobs, params={}, *qargs)
 
