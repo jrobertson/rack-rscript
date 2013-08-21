@@ -167,14 +167,21 @@ class RackRscript
 
   end
 
-  def render(name,type, options={})
-    layout = Tilt[type.to_s].new(options) {|x| @templates[:layout]}
-    template = Tilt[type.to_s].new(options) {|x| @templates[name]}
+  def render(name, type, options={})
+    layout = Tilt[type.to_s].new(options) {|x| @templates[:layout][:content]}
+    template = Tilt[type.to_s].new(options) {|x| @templates[name][:content]}
     layout.render{ template.render }
   end            
   
-  def template(name,&blk)
-    @templates.merge!({name => blk.call})
+  def template(name, type=nil, &blk)
+    @templates.merge!({name => {content: blk.call, type: type}})
   end                  
-     
+
+  def tilt(name, options={})
+    
+    layout = Tilt[@templates[:layout][:type].to_s].new(options) {|x| @templates[:layout][:content]}
+    template = Tilt[@templates[name][:type].to_s].new(options) {|x| @templates[name][:content]}
+    layout.render{ template.render }
+  end    
 end
+

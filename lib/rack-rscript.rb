@@ -170,7 +170,7 @@ class RackRscript
   def render(name, type, options={})
     layout = Tilt[type.to_s].new(options) {|x| @templates[:layout][:content]}
     template = Tilt[type.to_s].new(options) {|x| @templates[name][:content]}
-    layout.render{ template.render }
+    layout.render{ template.render(self)}
   end            
   
   def template(name, type=nil, &blk)
@@ -181,7 +181,6 @@ class RackRscript
     
     layout = Tilt[@templates[:layout][:type].to_s].new(options) {|x| @templates[:layout][:content]}
     template = Tilt[@templates[name][:type].to_s].new(options) {|x| @templates[name][:content]}
-    layout.render{ template.render }
+    layout.render{ template.render(self)}
   end    
 end
-
