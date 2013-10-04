@@ -78,7 +78,9 @@ class RackRscript
         'text/html' => passthru_proc,
         'text/haml' => tilt_proc,
         'text/slim' => tilt_proc,
-        'text/plain' => passthru_proc
+        'text/plain' => passthru_proc,
+        'text/xml' => passthru_proc,
+        'application/xml' => passthru_proc
       }
       content_type ||= 'text/html'
       status_code ||= 200                  
@@ -171,15 +173,27 @@ class RackRscript
   end
 
   def render(name, type, opt={})
+    
     options = {locals: {}}.merge!(opt)
     locals = options.delete :locals
-    layout = Tilt[type.to_s].new(options) {|x| @templates[:layout][:content]}
+    
+    unless @templates[:layout] then
+      template(:layout, type) { File.read('views/layout.' + type.to_s) }
+    end
+    
+    layout = Tilt[type.to_s].new(options) {|x| @templates[:layout][:content]}    
+
+    unless @templates[name] then
+      template(name, type) { File.read("views/%s.%s" % [name.to_s, type.to_s]) }
+    end    
+
     template = Tilt[type.to_s].new(options) {|x| @templates[name][:content]}
     layout.render{ template.render(self, locals)}
   end            
   
   def template(name, type=nil, &blk)
     @templates.merge!({name => {content: blk.call, type: type}})
+    @templates[name]
   end                  
 
   def tilt(name, options={})
