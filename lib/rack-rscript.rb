@@ -105,7 +105,7 @@ class RackRscript
     if @params[:splat] and @params[:splat].length > 0 then
       h = @params[:splat].first[1..-1].split('&').inject({}) do |r,x| 
         k, v = x.split('=')
-        v ? r.merge(k[/\w+$/].to_sym => v) : r
+        v ? r.merge(k[/\w+$/].to_sym => Rack::Utils.unescape(v)) : r
       end
       @params.merge! h
     end
