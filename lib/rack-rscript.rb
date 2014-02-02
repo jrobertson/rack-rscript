@@ -145,7 +145,7 @@ class RackRscript
     render name, :slim, options
   end    
   
-  private
+  protected
 
   def default_routes(env, params)
 
@@ -171,6 +171,8 @@ class RackRscript
     
 
   end
+
+  private
 
   def render(name, type, opt={})
     
