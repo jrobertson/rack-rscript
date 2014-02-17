@@ -48,9 +48,11 @@ class RackRscript
 
     log "_: " + env.keys.inspect
     log Time.now.to_s + "_: " + env.inspect
-
+    req = Rack::Request.new(env)
+    log 'params : '  + req.params.inspect
+    @req_params = req.params
     default_routes(env,@params)
-    content, content_type, status_code = run_route(request)        
+    content, content_type, status_code = run_route(request, env['REQUEST_METHOD'])
 
     if content.is_a? Redirect then
       redirectx = content
@@ -58,10 +60,13 @@ class RackRscript
       res.redirect(redirectx.to_url)
       res.finish      
     else
-      
-      if content.nil? then
-        e = $!
-        log(e) if e
+
+      e = $!
+
+      if e then
+        content, status_code = e, 500
+        log(e)      
+      elsif content.nil? then
         content, status_code  = "404: page not found", 404             
       end      
 
@@ -69,7 +74,7 @@ class RackRscript
         type = content_type[/[^\/]+$/]
         s = [s,{}] unless s.is_a? Array
         content, options = s
-        [Tilt[type].new(options) {|x| content}.render, 'text/html']
+        [Tilt[type].new() {|x| content}.render(self, options), 'text/html']
       end
       
       passthru_proc = lambda{|c, ct| [c,ct]}
@@ -80,11 +85,15 @@ class RackRscript
         'text/slim' => tilt_proc,
         'text/plain' => passthru_proc,
         'text/xml' => passthru_proc,
-        'application/xml' => passthru_proc
+        'application/xml' => passthru_proc,
+        'image/png' => passthru_proc,
+        'image/jpeg' => passthru_proc
       }
       content_type ||= 'text/html'
       status_code ||= 200                  
-      content, content_type = ct_list[content_type].call(content, content_type)      
+      proc = ct_list[content_type]
+      proc ||= passthru_proc
+      content, content_type = proc.call(content, content_type)      
       
       [status_code, {"Content-Type" => content_type}, [content]]
     end
@@ -110,6 +119,7 @@ class RackRscript
       @params.merge! h
     end
     
+    @params.merge! @req_params
     result, args = @rrscript.read([url, jobs.split(/\s/), \
       qargs].flatten)
 
@@ -152,8 +162,18 @@ class RackRscript
     get '/do/:package/:job' do |package,job|
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
     end
+
+    post '/do/:package/:job' do |package,job|
+      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
+    end
     
     get '/do/:package/:job/*' do |package, job|
+      raw_args = params[:splat]
+      args = raw_args.first[1..-1][/.\S+/].split('/')
+      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
+    end
+
+    post '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
       args = raw_args.first[1..-1][/.\S+/].split('/')
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
