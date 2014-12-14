@@ -19,6 +19,9 @@ class Redirect
   end
 end
 
+class RackRscriptError < Exception
+end
+
 class RackRscript
   include AppRoutes
 
@@ -56,15 +59,15 @@ class RackRscript
           @ws = c.connect(uri: "ws://%s:%s" % [opts[:sps_address], opts[:sps_port]])
 
           @ws.onopen do
-            puts "Client connected"          
+            #puts "Client connected"          
           end
 
           @ws.onclose do
-            puts "Client disconnected"
+            #puts "Client disconnected"
           end
 
           EventMachine.error_handler{ |e|
-            puts "Error raised during event loop: #{e.message}"
+            #puts "Error raised during event loop: #{e.message}"
           
           }
       
@@ -74,7 +77,7 @@ class RackRscript
     end  
   end
 
-  def call(env)
+        def call(env)
     @env = env
     request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
 
@@ -117,6 +120,7 @@ class RackRscript
         'text/slim' => tilt_proc,
         'text/plain' => passthru_proc,
         'text/xml' => passthru_proc,
+        'text/css' => passthru_proc,
         'application/xml' => passthru_proc,
         'image/png' => passthru_proc,
         'image/jpeg' => passthru_proc
@@ -129,7 +133,7 @@ class RackRscript
       
       [status_code, {"Content-Type" => content_type}, [content]]
     end
-  end
+        end
 
   def clear_cache()
     @rrscript.reset
@@ -164,6 +168,7 @@ class RackRscript
     rescue Exception => e  
       @params = {}
       err_label = e.message.to_s + " :: \n" + e.backtrace.join("\n")      
+      raise RackRscriptError, err_label
       log(err_label)
     end
     
