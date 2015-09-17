@@ -9,7 +9,7 @@ require 'logger'
 require 'haml'
 require 'slim'
 require 'tilt'
-require 'websocket-eventmachine-client'
+
 
 class Redirect
   attr_reader :to_url
@@ -25,16 +25,15 @@ end
 class RackRscript
   include AppRoutes
 
-  attr_reader :ws
 
   def initialize(raw_opts={})
+    
     @params = {}
     @templates = {}
     
     @rrscript = RScript.new
     
-    opts = {logfile: '', logrotate: 'daily', pkg_src: '', sps_port: 59000}\
-      .merge(raw_opts)
+    opts = {logfile: '', logrotate: 'daily', pkg_src: ''}.merge(raw_opts)
     @url_base = opts[:pkg_src] # web server serving the RSF files
     @url_base += '/' unless @url_base[-1] == '/'
     
@@ -48,36 +47,10 @@ class RackRscript
     super() # required for app-routes initialize method to exectue
     default_routes(@env, @params)
 
-    if opts[:sps_address] then
-
-      c = WebSocket::EventMachine::Client
-
-      Thread.new do   
-
-        EM.run do
-
-          @ws = c.connect(uri: "ws://%s:%s" % [opts[:sps_address], opts[:sps_port]])
-
-          @ws.onopen do
-            #puts "Client connected"          
-          end
-
-          @ws.onclose do
-            #puts "Client disconnected"
-          end
-
-          EventMachine.error_handler{ |e|
-            #puts "Error raised during event loop: #{e.message}"
-          
-          }
-      
-        end
-       
-      end
-    end  
   end
 
-        def call(env)
+  def call(env)
+    
     @env = env
     request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
 
@@ -90,10 +63,12 @@ class RackRscript
     content, content_type, status_code = run_route(request, env['REQUEST_METHOD'])
 
     if content.is_a? Redirect then
+      
       redirectx = content
       res = Rack::Response.new
       res.redirect(redirectx.to_url)
       res.finish      
+      
     else
 
       e = $!
@@ -222,8 +197,19 @@ class RackRscript
     end    
 
      get '/source/:package' do |package,job|
+       
        url = "%s%s.rsf" % [@url_base, package]
-       [open(url,'User-Agent' => 'Rack-Rscript'){|x| x.read },'text/plain']
+       
+       begin
+         
+        [RXFHelper.read(url).first,'text/plain']
+        
+       rescue
+         
+        ['url: ' + url + '; ' + ($!).inspect + \
+            'couldn\'t find that package', 'text/plain']
+       end
+
     end    
     
 
