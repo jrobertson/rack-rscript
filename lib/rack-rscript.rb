@@ -97,6 +97,7 @@ class RackRscript
         'text/xml' => passthru_proc,
         'text/css' => passthru_proc,
         'application/xml' => passthru_proc,
+        'application/json' => passthru_proc,
         'image/png' => passthru_proc,
         'image/jpeg' => passthru_proc
       }
@@ -196,22 +197,32 @@ class RackRscript
       [@rrscript.read([url, '//job:' + job]).first, 'text/plain']
     end    
 
-     get '/source/:package' do |package,job|
+    get '/source/:package' do |package,job|
        
-       url = "%s%s.rsf" % [@url_base, package]
-       
-       begin
-         
-        [RXFHelper.read(url).first,'text/plain']
+      url = "%s%s.rsf" % [@url_base, package]
+
+      begin
         
-       rescue
-         
+        [RXFHelper.read(url).first,'text/plain']
+
+      rescue
+        
         ['url: ' + url + '; ' + ($!).inspect + \
-            'couldn\'t find that package', 'text/plain']
-       end
+          'couldn\'t find that package', 'text/plain']
+      end
 
     end    
-    
+
+    get '/ls' do
+       
+      File.exists? @url_base
+      filepath = @url_base
+       
+      [Dir.glob(filepath + '/*.rsf').map{|x| x[/([^\/]+)\.rsf$/,1]}.to_json,\
+                                                            'application/json']
+
+    end    
+        
 
   end
 
