@@ -26,22 +26,22 @@ class RackRscript
   include AppRoutes
 
 
-  def initialize(raw_opts={})
+  def initialize(logfile: '', logrotate: 'daily', pkg_src: '', cache: true)
     
     @params = {}
     @templates = {}
     
-    @rrscript = RScript.new
+    @rrscript = RScript.new logfile: logfile, logrotate: logrotate, \
+                            pkg_src: pkg_src, cache: cache
     
-    opts = {logfile: '', logrotate: 'daily', pkg_src: ''}.merge(raw_opts)
-    @url_base = opts[:pkg_src] # web server serving the RSF files
+    @url_base = pkg_src # web server serving the RSF files
     @url_base += '/' unless @url_base[-1] == '/'
     
     @log = false
 
-    if opts[:logfile].length > 0 then
+    if logfile.length > 0 then
       @log = true
-      @logger = Logger.new(opts[:logfile], opts[:logrotate])    
+      @logger = Logger.new(logfile, logrotate)
     end
 
     super() # required for app-routes initialize method to exectue
@@ -89,6 +89,8 @@ class RackRscript
       
       passthru_proc = lambda{|c, ct| [c,ct]}
       
+                              
+      
       ct_list = {
         'text/html' => passthru_proc,
         'text/haml' => tilt_proc,
@@ -101,6 +103,7 @@ class RackRscript
         'image/png' => passthru_proc,
         'image/jpeg' => passthru_proc
       }
+      
       content_type ||= 'text/html'
       status_code ||= 200                  
       proc = ct_list[content_type]
@@ -109,7 +112,7 @@ class RackRscript
       
       [status_code, {"Content-Type" => content_type}, [content]]
     end
-        end
+  end
 
   def clear_cache()
     @rrscript.reset
@@ -158,6 +161,11 @@ class RackRscript
   
   def redirect(url)
     Redirect.new url
+  end
+  
+  # j2 140616 not yet used and still needs to be tested
+  def transform(xsl, xml)
+    Rexslt.new(xsl, xml).to_s
   end
 
   def haml(name,options={})    
