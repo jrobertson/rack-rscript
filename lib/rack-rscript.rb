@@ -9,6 +9,8 @@ require 'logger'
 require 'haml'
 require 'slim'
 require 'tilt'
+require 'json'
+require 'rexslt'
 
 
 class Redirect
@@ -26,7 +28,7 @@ class RackRscript
   include AppRoutes
 
 
-  def initialize(logfile: '', logrotate: 'daily', pkg_src: '', cache: true)
+  def initialize(logfile: '', logrotate: 'daily', pkg_src: '', cache: 5)
     
     @params = {}
     @templates = {}
@@ -163,7 +165,7 @@ class RackRscript
     Redirect.new url
   end
   
-  # j2 140616 not yet used and still needs to be tested
+  # jr 140616 not yet used and still needs to be tested
   def transform(xsl, xml)
     Rexslt.new(xsl, xml).to_s
   end
@@ -180,9 +182,14 @@ class RackRscript
 
   def default_routes(env, params)
 
+
     get '/do/:package/:job' do |package,job|
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
-    end
+    end    
+
+    get /\/(.*)\/do\/(\w+)\/(\w+)/ do |d, package,job|
+      run_job(("%s%s/%s.rsf" % [@url_base, d, package]), "//job:" + job, params) 
+    end    
 
     post '/do/:package/:job' do |package,job|
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
