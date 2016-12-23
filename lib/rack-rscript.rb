@@ -197,13 +197,13 @@ class RackRscript
     
     get '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
-      args = raw_args.first[1..-1][/.\S+/].split('/')
+      args = raw_args.first[1..-1][/.\S*/].split('/')
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
     end
 
     post '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
-      args = raw_args.first[1..-1][/.\S+/].split('/')
+      args = raw_args.first[1..-1][/.\S*/].split('/')
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
     end
 
