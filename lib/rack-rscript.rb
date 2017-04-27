@@ -3,14 +3,15 @@
 # file: rack-rscript.rb
 
 
-require 'rscript'
-require 'app-routes'
-require 'logger'
+require 'rsc'
 require 'haml'
 require 'slim'
 require 'tilt'
 require 'json'
+require 'logger'
 require 'rexslt'
+require 'rscript'
+require 'app-routes'
 
 
 class Redirect
@@ -28,7 +29,8 @@ class RackRscript
   include AppRoutes
 
 
-  def initialize(logfile: '', logrotate: 'daily', pkg_src: '', cache: 5)
+  def initialize(logfile: '', logrotate: 'daily', pkg_src: '', cache: 5, 
+                 rsc_host: 'rse', rsc_package_src: nil)
     
     @params = {}
     @templates = {}
@@ -47,7 +49,10 @@ class RackRscript
     end
 
     super() # required for app-routes initialize method to exectue
-    default_routes(@env, @params)
+    default_routes(@env, @params)    
+    
+    @rsc = nil
+    @rsc = RSC.new rsc_host, rsc_package_src if rsc_package_src
 
   end
 
@@ -114,7 +119,7 @@ class RackRscript
       
       [status_code, {"Content-Type" => content_type}, [content]]
     end
-  end
+        end
 
   def clear_cache()
     @rrscript.reset
@@ -141,6 +146,7 @@ class RackRscript
       qargs].flatten)
 
     rws = self
+    rsc = @rsc if @rsc
     
     begin
       r = eval result
