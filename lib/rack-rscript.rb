@@ -8,7 +8,6 @@ require 'haml'
 require 'slim'
 require 'tilt'
 require 'json'
-require 'logger'
 require 'rexslt'
 require 'rscript'
 require 'app-routes'
@@ -29,24 +28,20 @@ class RackRscript
   include AppRoutes
 
 
-  def initialize(logfile: '', logrotate: 'daily', pkg_src: '', cache: 5, 
+  def initialize(log: nil, pkg_src: '', cache: 5, 
                  rsc_host: 'rse', rsc_package_src: nil)
     
     @params = {}
     @templates = {}
     
-    @rrscript = RScript.new logfile: logfile, logrotate: logrotate, \
-                            pkg_src: pkg_src, cache: cache
+    @rrscript = RScript.new log: log, pkg_src: pkg_src, cache: cache
     
     @url_base = pkg_src # web server serving the RSF files
     @url_base += '/' unless @url_base[-1] == '/'
     
-    @log = false
+    @log = log
 
-    if logfile.length > 0 then
-      @log = true
-      @logger = Logger.new(logfile, logrotate)
-    end
+
 
     super() # required for app-routes initialize method to exectue
     default_routes(@env, @params)    
@@ -61,8 +56,7 @@ class RackRscript
     @env = env
     request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
 
-    log "_: " + env.keys.inspect
-    log Time.now.to_s + "_: " + env.inspect
+    @log.info 'RackRscript/call: ' + env.inspect if @log
     req = Rack::Request.new(env)
 
     @req_params = req.params
@@ -82,7 +76,7 @@ class RackRscript
 
       if e then
         content, status_code = e, 500
-        log(e)      
+        @log.debug 'RackRscript/call/error: ' + e if @log
       elsif content.nil? then
         content, status_code  = "404: page not found", 404             
       end      
@@ -105,10 +99,13 @@ class RackRscript
         'text/plain' => passthru_proc,
         'text/xml' => passthru_proc,
         'text/css' => passthru_proc,
+        'text/markdown' => passthru_proc,
         'application/xml' => passthru_proc,
+        'application/xhtml' => passthru_proc,
         'application/json' => passthru_proc,
         'image/png' => passthru_proc,
-        'image/jpeg' => passthru_proc
+        'image/jpeg' => passthru_proc,
+        'image/svg+xml' => passthru_proc
       }
       
       content_type ||= 'text/html'
@@ -153,19 +150,16 @@ class RackRscript
       return r
 
     rescue Exception => e  
+      
       @params = {}
       err_label = e.message.to_s + " :: \n" + e.backtrace.join("\n")      
       raise RackRscriptError, err_label
-      log(err_label)
+
+      @log.debug 'RackRscript/run_job/error: ' + err_label if @log
     end
     
   end
-  
-  def log(msg)
-    if @log == true then
-      @logger.debug msg
-    end
-  end
+
   
   def redirect(url)
     Redirect.new url
