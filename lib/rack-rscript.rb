@@ -11,6 +11,7 @@ require 'json'
 require 'rexslt'
 require 'rscript'
 require 'app-routes'
+require 'uri'
 
 
 class Redirect
