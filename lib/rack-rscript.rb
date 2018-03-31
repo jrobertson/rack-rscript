@@ -12,6 +12,7 @@ require 'rexslt'
 require 'rscript'
 require 'app-routes'
 require 'uri'
+require 'polyrex-links'
 
 
 class Redirect
@@ -29,8 +30,8 @@ class RackRscript
   include AppRoutes
 
 
-  def initialize(log: nil, pkg_src: '', cache: 5, 
-                 rsc_host: 'rse', rsc_package_src: nil)
+  def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: 'rse', 
+                 rsc_package_src: nil, pxlinks: nil, debug: false)
     
     @params = {}
     @templates = {}
@@ -40,9 +41,24 @@ class RackRscript
     @url_base = pkg_src # web server serving the RSF files
     @url_base += '/' unless @url_base[-1] == '/'
     
-    @log = log
-
-
+    @log, @debug = log, debug
+    
+    if pxlinks then
+      
+      src, _ = RXFHelper.read(pxlinks)
+      
+      if src =~ /^<\?/ then
+        
+        @pxlinks = PolyrexLinks.new src
+        
+      else
+        
+        @pxlinks = PolyrexLinks.new
+        @pxlinks.parse pxlinks
+        
+      end      
+      
+    end
 
     super() # required for app-routes initialize method to exectue
     default_routes(@env, @params)    
@@ -55,13 +71,21 @@ class RackRscript
   def call(env)
     
     @env = env
-    request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
+    raw_request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
 
     @log.info 'RackRscript/call: ' + env.inspect if @log
     req = Rack::Request.new(env)
 
     @req_params = req.params
     default_routes(env,@params)
+    
+    request = if @pxlinks then
+      found = @pxlinks.locate(raw_request)
+      found ? found.join : raw_request
+    else
+      raw_request
+    end
+    
     content, content_type, status_code = run_route(request, env['REQUEST_METHOD'])
 
     if content.is_a? Redirect then
@@ -117,7 +141,7 @@ class RackRscript
       
       [status_code, {"Content-Type" => content_type}, [content]]
     end
-        end
+	end
 
   def clear_cache()
     @rrscript.reset
