@@ -74,9 +74,9 @@ class RackRscript
     raw_request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
 
     @log.info 'RackRscript/call: ' + env.inspect if @log
-    req = Rack::Request.new(env)
+    @req = Rack::Request.new(env)
 
-    @req_params = req.params
+    @req_params = @req.params
     default_routes(env,@params)
     
     request = if @pxlinks then
@@ -168,7 +168,8 @@ class RackRscript
       qargs].flatten)
 
     rws = self
-    rsc = @rsc if @rsc
+    rsc = @rsc if @rsc    
+    req = @req if @req
     
     begin
       r = eval result
