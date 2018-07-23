@@ -97,61 +97,7 @@ class RackRscript
       raw_request
     end
     
-    content, content_type, status_code = run_route(request, env['REQUEST_METHOD'])
-
-    if content.is_a? Redirect then
-      
-      redirectx = content
-      res = Rack::Response.new
-      res.redirect(redirectx.to_url)
-      res.finish      
-      
-    else
-
-      e = $!
-
-      if e then
-        content, status_code = e, 500
-        @log.debug 'RackRscript/call/error: ' + e if @log
-      elsif content.nil? then
-        content, status_code  = "404: page not found", 404             
-      end      
-
-      tilt_proc = lambda do |s, content_type| 
-        type = content_type[/[^\/]+$/]
-        s = [s,{}] unless s.is_a? Array
-        content, options = s
-        [Tilt[type].new() {|x| content}.render(self, options), 'text/html']
-      end
-      
-      passthru_proc = lambda{|c, ct| [c,ct]}
-      
-                              
-      
-      ct_list = {
-        'text/html' => passthru_proc,
-        'text/haml' => tilt_proc,
-        'text/slim' => tilt_proc,
-        'text/plain' => passthru_proc,
-        'text/xml' => passthru_proc,
-        'text/css' => passthru_proc,
-        'text/markdown' => passthru_proc,
-        'application/xml' => passthru_proc,
-        'application/xhtml' => passthru_proc,
-        'application/json' => passthru_proc,
-        'image/png' => passthru_proc,
-        'image/jpeg' => passthru_proc,
-        'image/svg+xml' => passthru_proc      
-      }
-      
-      content_type ||= 'text/html'
-      status_code ||= 200                  
-      proc = ct_list[content_type]
-      proc ||= passthru_proc
-      content, content_type = proc.call(content, content_type)      
-      
-      [status_code, {"Content-Type" => content_type}, [content]]
-    end
+    run_request(request)
 	end
 
   def clear_cache()
@@ -162,7 +108,8 @@ class RackRscript
 
     if @params[:splat] then
       @params.each do  |k,v|
-        @params.delete k unless k == :splat or k == :package or k == :job or k == :captures
+        @params.delete k unless k == :splat or k == :package \
+            or k == :job or k == :captures
       end
     end  
     
@@ -174,7 +121,7 @@ class RackRscript
       @params.merge! h
     end
     
-    @params.merge! @req_params
+    @params.merge! @req.params
     result, args = @rrscript.read([url, jobs.split(/\s/), \
       qargs].flatten)
 
@@ -225,7 +172,8 @@ class RackRscript
     end    
 
     get /\/(.*)\/do\/(\w+)\/(\w+)/ do |d, package,job|
-      run_job(("%s%s/%s.rsf" % [@url_base, d, package]), "//job:" + job, params) 
+      run_job(("%s%s/%s.rsf" % [@url_base, d, package]), 
+              "//job:" + job, params) 
     end    
 
     post '/do/:package/:job' do |package,job|
@@ -307,6 +255,67 @@ class RackRscript
     end
 
   end
+  
+  def run_request(request)
+    
+    content, content_type, status_code = run_route(request, 
+                                                   @env['REQUEST_METHOD'])    
+    
+    if content.is_a? Redirect then
+      
+      redirectx = content
+      res = Rack::Response.new
+      res.redirect(redirectx.to_url)
+      res.finish      
+      
+    else
+
+      e = $!
+
+      if e then
+        content, status_code = e, 500
+        @log.debug 'RackRscript/call/error: ' + e if @log
+      elsif content.nil? then
+        content, status_code  = "404: page not found", 404             
+      end      
+
+      tilt_proc = lambda do |s, content_type| 
+        type = content_type[/[^\/]+$/]
+        s = [s,{}] unless s.is_a? Array
+        content, options = s
+        [Tilt[type].new() {|x| content}.render(self, options), 'text/html']
+      end
+      
+      passthru_proc = lambda{|c, ct| [c,ct]}
+                                          
+      ct_list = {
+        'text/html' => passthru_proc,
+        'text/haml' => tilt_proc,
+        'text/slim' => tilt_proc,
+        'text/plain' => passthru_proc,
+        'text/xml' => passthru_proc,
+        'text/css' => passthru_proc,
+        'text/markdown' => passthru_proc,
+        'application/xml' => passthru_proc,
+        'application/xhtml' => passthru_proc,
+        'application/json' => passthru_proc,
+        'image/png' => passthru_proc,
+        'image/jpeg' => passthru_proc,
+        'image/svg+xml' => passthru_proc      
+      }
+      
+      content_type ||= 'text/html'
+      status_code ||= 200                  
+      proc = ct_list[content_type]
+      proc ||= passthru_proc
+      content, content_type = proc.call(content, content_type)      
+      
+      [status_code, {"Content-Type" => content_type}, [content]]
+    end    
+    
+  end
+  
+  alias jumpto run_request
 
   private
 
@@ -322,7 +331,7 @@ class RackRscript
     layout = Tilt[type.to_s].new(options) {|x| @templates[:layout][:content]}    
 
     unless @templates[name] then
-      template(name, type) { File.read("views/%s.%s" % [name.to_s, type.to_s]) }
+      template(name, type) { File.read("views/%s.%s" % [name.to_s, type.to_s])}
     end    
 
     template = Tilt[type.to_s].new(options) {|x| @templates[name][:content]}
@@ -335,10 +344,15 @@ class RackRscript
   end                  
 
   def tilt(name, options={})
+    
     options = {locals: {}}.merge!(opt)
     locals = options.delete :locals
-    layout = Tilt[@templates[:layout][:type].to_s].new(options) {|x| @templates[:layout][:content]}
-    template = Tilt[@templates[name][:type].to_s].new(options) {|x| @templates[name][:content]}
+    layout = Tilt[@templates[:layout][:type].to_s].new(options)\
+        {|x| @templates[:layout][:content]}
+    template = Tilt[@templates[name][:type].to_s].new(options) \
+        {|x| @templates[name][:content]}
     layout.render{ template.render(self, locals)}
+    
   end    
+  
 end
