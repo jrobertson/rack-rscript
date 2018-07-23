@@ -31,17 +31,22 @@ class RackRscript
 
 
   def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: 'rse', 
-                 rsc_package_src: nil, pxlinks: nil, debug: false)
+                 rsc_package_src: nil, pxlinks: nil, debug: false,
+                 root: 'www', static: [])
+
+    @log, @debug, @static = log, debug, static
+    
+    puts '@app_root: ' + @app_root.inspect if @debug
+    puts 'root: ' + root.inspect if @debug
     
     @params = {}
+    
     @templates = {}
     
     @rrscript = RScript.new log: log, pkg_src: pkg_src, cache: cache
     
     @url_base = pkg_src # web server serving the RSF files
-    @url_base += '/' unless @url_base[-1] == '/'
-    
-    @log, @debug = log, debug
+    @url_base += '/' unless @url_base[-1] == '/'    
     
     if pxlinks then
       
@@ -65,6 +70,12 @@ class RackRscript
     
     @rsc = nil
     @rsc = RSC.new rsc_host, rsc_package_src if rsc_package_src
+    
+    @filetype = {xml: 'application/xml', html: 'text/html', png: 'image/png',
+             jpg: 'image/jpeg', txt: 'text/plain', css: 'text/css',
+             xsl: 'application/xml', svg: 'image/svg+xml'}    
+    
+    @root, @static = root, static
 
   end
 
@@ -130,7 +141,7 @@ class RackRscript
         'application/json' => passthru_proc,
         'image/png' => passthru_proc,
         'image/jpeg' => passthru_proc,
-        'image/svg+xml' => passthru_proc
+        'image/svg+xml' => passthru_proc      
       }
       
       content_type ||= 'text/html'
@@ -263,7 +274,37 @@ class RackRscript
                                                             'application/json']
 
     end    
-        
+    
+    get /^(\/(?:#{@static.join('|')}).*)/ do |path|
+
+      puts 'path: ' + path.inspect if @debug
+      filepath = File.join(@app_root, @root, path )
+
+      if @log then
+        @log.info 'DandelionS1/default_routes: ' + 
+            "root: %s path: %s" % [@root, path]
+      end
+
+      if path.length < 1 or path[-1] == '/' then
+        path += 'index.html' 
+        File.read filepath
+      elsif File.directory? filepath then
+        Redirect.new (path + '/') 
+      elsif File.exists? filepath then
+
+        content_type = @filetype[filepath[/\w+$/].to_sym]
+        [File.read(filepath), content_type || 'text/plain']
+      else
+        'oops, file ' + filepath + ' not found'
+      end
+
+    end
+
+    get /^\/$/ do
+
+      file = File.join(@root, 'index.html')
+      File.read file
+    end
 
   end
 
