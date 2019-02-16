@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'rack-rscript'
-  s.version = '1.1.3'
+  s.version = '1.1.4'
   s.summary = 'Rack-Rscript is a light-weight alternative to Sinatra-Rscript.'
   s.authors = ['James Robertson']
   s.files = Dir['lib/rack-rscript.rb']

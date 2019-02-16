@@ -223,29 +223,32 @@ class RackRscript
 
     end    
     
-    get /^(\/(?:#{@static.join('|')}).*)/ do |path|
+    if @static.any? then
+        
+      get /^(\/(?:#{@static.join('|')}).*)/ do |path|
 
-      puts 'path: ' + path.inspect if @debug
-      filepath = File.join(@app_root, @root, path )
+        puts 'path: ' + path.inspect if @debug
+        filepath = File.join(@app_root, @root, path )
 
-      if @log then
-        @log.info 'DandelionS1/default_routes: ' + 
-            "root: %s path: %s" % [@root, path]
+        if @log then
+          @log.info 'DandelionS1/default_routes: ' + 
+              "root: %s path: %s" % [@root, path]
+        end
+
+        if path.length < 1 or path[-1] == '/' then
+          path += 'index.html' 
+          File.read filepath
+        elsif File.directory? filepath then
+          Redirect.new (path + '/') 
+        elsif File.exists? filepath then
+
+          content_type = @filetype[filepath[/\w+$/].to_sym]
+          [File.read(filepath), content_type || 'text/plain']
+        else
+          'oops, file ' + filepath + ' not found'
+        end
+
       end
-
-      if path.length < 1 or path[-1] == '/' then
-        path += 'index.html' 
-        File.read filepath
-      elsif File.directory? filepath then
-        Redirect.new (path + '/') 
-      elsif File.exists? filepath then
-
-        content_type = @filetype[filepath[/\w+$/].to_sym]
-        [File.read(filepath), content_type || 'text/plain']
-      else
-        'oops, file ' + filepath + ' not found'
-      end
-
     end
 
     get /^\/$/ do
@@ -258,9 +261,11 @@ class RackRscript
   
   def run_request(request)
     
-    content, content_type, status_code = run_route(request, 
-                                                   @env['REQUEST_METHOD'])    
-    
+    #@log.debug 'inside run_request: ' + request.inspect if @log
+    #@log.debug 'inside run_request @env: ' + @env.inspect if @log
+    method_type = @env ? @env['REQUEST_METHOD'] : 'GET'
+    content, content_type, status_code = run_route(request, method_type)    
+    #@log.debug 'inside run_request' if @log
     if content.is_a? Redirect then
       
       redirectx = content
