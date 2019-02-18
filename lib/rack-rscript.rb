@@ -28,11 +28,11 @@ end
 
 class RackRscript
   include AppRoutes
-
-
+  include RXFHelperModule
+  
   def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: 'rse', 
                  rsc_package_src: nil, pxlinks: nil, debug: false,
-                 root: 'www', static: [])
+                 root: 'www', static: {})
 
     @log, @debug, @static = log, debug, static
     
@@ -215,7 +215,7 @@ class RackRscript
 
     get '/ls' do
        
-      File.exists? @url_base
+      FileX.exists? @url_base
       filepath = @url_base
        
       [Dir.glob(filepath + '/*.rsf').map{|x| x[/([^\/]+)\.rsf$/,1]}.to_json,\
@@ -225,25 +225,39 @@ class RackRscript
     
     if @static.any? then
         
-      get /^(\/(?:#{@static.join('|')}).*)/ do |path|
+      get /^(\/(?:#{@static.keys.join('|')}).*)/ do |raw_path|
 
-        puts 'path: ' + path.inspect if @debug
-        filepath = File.join(@app_root, @root, path )
+        _, file, tailpath = raw_path.split('/',3)
+        
+        filepath = if @static[file].empty? then
+        
+          path = raw_path
+          puts 'path: ' + path.inspect if @debug
+          filepath = File.join(@app_root, @root, path )          
+          
+        else
+          
+          File.join(@static[file], tailpath)  
+          
+        end
+
+        @log.debug 'RackRscript/default_routes/filepath: ' + filepath.inspect if @log        
+
 
         if @log then
           @log.info 'DandelionS1/default_routes: ' + 
               "root: %s path: %s" % [@root, path]
         end
 
-        if path.length < 1 or path[-1] == '/' then
-          path += 'index.html' 
-          File.read filepath
-        elsif File.directory? filepath then
-          Redirect.new (path + '/') 
-        elsif File.exists? filepath then
+        if filepath.length < 1 or filepath[-1] == '/' then
+          filepath += 'index.html' 
+          FileX.read filepath
+        elsif FileX.directory? filepath then
+          Redirect.new (filepath + '/') 
+        elsif FileX.exists? filepath then
 
           content_type = @filetype[filepath[/\w+$/].to_sym]
-          [File.read(filepath), content_type || 'text/plain']
+          [FileX.read(filepath), content_type || 'text/plain']
         else
           'oops, file ' + filepath + ' not found'
         end
