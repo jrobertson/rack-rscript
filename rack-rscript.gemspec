@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'rack-rscript'
-  s.version = '1.1.5'
+  s.version = '1.1.6'
   s.summary = 'Rack-Rscript is a light-weight alternative to Sinatra-Rscript.'
   s.authors = ['James Robertson']
   s.files = Dir['lib/rack-rscript.rb']
@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   #s.add_runtime_dependency('haml', '~> 5.0', '>=5.0.0')
   s.add_runtime_dependency('tilt', '~> 2.0', '>=2.0.9') 
   s.add_runtime_dependency('slim', '~> 4.0', '>=4.0.1')
-  s.add_runtime_dependency('json', '~> 2.1', '>=2.1.0')
+  s.add_runtime_dependency('json', '~> 2.2', '>=2.2.0')
   s.add_runtime_dependency('rexslt', '~> 0.6', '>=0.6.13')
   s.add_runtime_dependency('rsc', '~> 0.4', '>=0.4.1')
   s.add_runtime_dependency('polyrex-links', '~> 0.3', '>=0.3.0')

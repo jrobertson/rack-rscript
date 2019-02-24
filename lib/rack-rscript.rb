@@ -29,10 +29,11 @@ end
 class RackRscript
   include AppRoutes
   include RXFHelperModule
+  using ColouredText
   
   def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: 'rse', 
                  rsc_package_src: nil, pxlinks: nil, debug: false,
-                 root: 'www', static: {})
+                 root: '', static: {})
 
     @log, @debug, @static = log, debug, static
     
@@ -182,13 +183,13 @@ class RackRscript
     
     get '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
-      args = raw_args.first[1..-1][/.\S*/].split('/')
+      args = raw_args.first[/[^\s\?]+/].to_s.split('/')[1..-1]
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
     end
 
     post '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
-      args = raw_args.first[1..-1][/.\S*/].split('/')
+      args = raw_args.first[/[^\s\?]+/].to_s.split('/')[1..-1]
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
     end
 
@@ -267,8 +268,13 @@ class RackRscript
 
     get /^\/$/ do
 
-      file = File.join(@root, 'index.html')
-      File.read file
+      if @root.length > 0 then
+        file = File.join(@root, 'index.html')
+        File.read file
+      else
+        Time.now.inspect
+      end
+      
     end
 
   end
