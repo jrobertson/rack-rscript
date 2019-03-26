@@ -26,14 +26,16 @@ end
 class RackRscriptError < Exception
 end
 
+
+
+
 class RackRscript
   include AppRoutes
   include RXFHelperModule
   using ColouredText
   
-  def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: 'rse', 
-                 rsc_package_src: nil, pxlinks: nil, debug: false,
-                 root: '', static: {})
+  def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: nil, 
+                 pxlinks: nil, debug: false, root: '', static: {})
 
     @log, @debug, @static = log, debug, static
     
@@ -44,7 +46,7 @@ class RackRscript
     
     @templates = {}
     
-    @rrscript = RScript.new log: log, pkg_src: pkg_src, cache: cache
+    @rscript = RScriptRW.new log: log, pkg_src: pkg_src, cache: cache, debug: true
     
     @url_base = pkg_src # web server serving the RSF files
     @url_base += '/' unless @url_base[-1] == '/'    
@@ -70,7 +72,8 @@ class RackRscript
     default_routes(@env, @params)    
     
     @rsc = nil
-    @rsc = RSC.new rsc_host, rsc_package_src if rsc_package_src
+
+    @rsc = RSC.new rsc_host if rsc_host
     
     @filetype = {xml: 'application/xml', html: 'text/html', png: 'image/png',
              jpg: 'image/jpeg', txt: 'text/plain', css: 'text/css',
@@ -102,10 +105,10 @@ class RackRscript
 	end
 
   def clear_cache()
-    @rrscript.reset
+    @rscript.reset
   end
 
-  def run_job(url, jobs, params={}, *qargs)
+  def run_job(url, jobs, params={}, type=:get, *qargs)
 
     if @params[:splat] then
       @params.each do  |k,v|
@@ -123,7 +126,8 @@ class RackRscript
     end
     
     @params.merge! @req.params
-    result, args = @rrscript.read([url, jobs.split(/\s/), \
+    @rscript.type = type
+    result, args = @rscript.read([url, jobs.split(/\s/), \
       qargs].flatten)
 
     rws = self
@@ -178,24 +182,24 @@ class RackRscript
     end    
 
     post '/do/:package/:job' do |package,job|
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
+      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, :post)  
     end
     
     get '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
       args = raw_args.first[/[^\s\?]+/].to_s.split('/')[1..-1]
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
+      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, :get, args)
     end
 
     post '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
       args = raw_args.first[/[^\s\?]+/].to_s.split('/')[1..-1]
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, args)
+      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, :post, args)
     end
 
     get '/source/:package/:job' do |package,job|
       url = "%s%s.rsf" % [@url_base, package]
-      [@rrscript.read([url, '//job:' + job]).first, 'text/plain']
+      [@rscript.read([url, '//job:' + job]).first, 'text/plain']
     end    
 
     get '/source/:package' do |package,job|
