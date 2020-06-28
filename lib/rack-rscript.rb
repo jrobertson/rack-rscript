@@ -34,11 +34,12 @@ class RackRscript
   include RXFHelperModule
   using ColouredText
   
+  
   def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: nil, 
                  pxlinks: nil, debug: false, root: '', static: {})
 
     @log, @debug, @static = log, debug, static
-    
+#=begin    
     puts '@app_root: ' + @app_root.inspect if @debug
     puts 'root: ' + root.inspect if @debug
     
@@ -47,6 +48,7 @@ class RackRscript
     @templates = {}
     
     @rscript = RScriptRW.new log: log, pkg_src: pkg_src, cache: cache, debug: true
+    @render = NThrut.new(self)
     
     @url_base = pkg_src # web server serving the RSF files
     @url_base += '/' unless @url_base[-1] == '/'    
@@ -73,20 +75,23 @@ class RackRscript
     
     @rsc = nil
 
-    @rsc = RSC.new rsc_host if rsc_host
+    @rsc = RSC.new rsc_host if rsc_host and rsc_host.length > 0
     
     @filetype = {xml: 'application/xml', html: 'text/html', png: 'image/png',
              jpg: 'image/jpeg', txt: 'text/plain', css: 'text/css',
              xsl: 'application/xml', svg: 'image/svg+xml'}    
     
     @root, @static = root, static
-
+    @initialized = {}
+#=end
   end
 
   def call(env)
-    
+
+
     @env = env
-    raw_request = env['REQUEST_URI'][/https?:\/\/[^\/]+(.*)/,1]
+    raw_request = env['REQUEST_URI'][/\/\/[^\/]+(.*)/,1]
+    #raw_request = env['REQUEST_PATH']
 
     @log.info 'RackRscript/call: ' + env.inspect if @log
     @req = Rack::Request.new(env)
@@ -101,7 +106,11 @@ class RackRscript
       raw_request
     end
     
+    @log.info 'RackRscript/call/request: ' + request.inspect if @log
+#=begin        
     run_request(request)
+#=end    
+#    [200, {"Content-Type" => "text/plain"}, [env.inspect]]
 	end
 
   def clear_cache()
@@ -110,6 +119,9 @@ class RackRscript
 
   def run_job(url, jobs, params={}, type=:get, *qargs)
 
+    @log.debug 'RackRscript/run_job/params: ' + params.inspect if @log
+    @log.debug 'RackRscript/run_job/qargs: ' + qargs.inspect if @log
+    
     if @params[:splat] then
       @params.each do  |k,v|
         @params.delete k unless k == :splat or k == :package \
@@ -135,6 +147,13 @@ class RackRscript
     req = @req if @req
     
     begin
+      
+      if @rscript.jobs(url).include? :initialize and 
+          !@initialized[url]  and jobs != 'initialize' then
+        @rscript.run([url, '//job:initialize'])
+        @initialized[url] = true
+      end
+      
       r = eval result
       return r
 
@@ -159,20 +178,22 @@ class RackRscript
     Rexslt.new(xsl, xml).to_s
   end
 
-  def haml(name,options={})    
-    render name, :haml, options
+  def haml(name,options={})        
+    @render.haml name, options
   end            
             
   def slim(name,options={})
-    render name, :slim, options
+    @render.slim name, options
   end    
   
   protected
 
   def default_routes(env, params)
 
-
+    @log.info 'RackRscript/default_routes: ' + params.inspect if @log
+    
     get '/do/:package/:job' do |package,job|
+      @log.info 'RackRscript/route/do/package/job: ' + [package, job].inspect if @log
       run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
     end    
 
@@ -289,6 +310,8 @@ class RackRscript
     #@log.debug 'inside run_request @env: ' + @env.inspect if @log
     method_type = @env ? @env['REQUEST_METHOD'] : 'GET'
     content, content_type, status_code = run_route(request, method_type)    
+    @log.info 'RackRscript/run_request/content: ' + content.inspect if @log
+    
     #@log.debug 'inside run_request' if @log
     if content.is_a? Redirect then
       
@@ -348,7 +371,7 @@ class RackRscript
 
   private
 
-  def render(name, type, opt={})
+  def render99(name, type, opt={})
     
     options = {locals: {}}.merge!(opt)
     locals = options.delete :locals
@@ -368,11 +391,15 @@ class RackRscript
   end            
   
   def template(name, type=nil, &blk)
+    @render.template name, type, &blk
+  end   
+  
+  def template99(name, type=nil, &blk)
     @templates.merge!({name => {content: blk.call, type: type}})
     @templates[name]
   end                  
 
-  def tilt(name, options={})
+  def tilt99(name, options={})
     
     options = {locals: {}}.merge!(opt)
     locals = options.delete :locals
