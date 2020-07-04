@@ -34,6 +34,8 @@ class RackRscript
   include RXFHelperModule
   using ColouredText
   
+  attr_reader :req
+  
   
   def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: nil, 
                  pxlinks: nil, debug: false, root: '', static: {})
