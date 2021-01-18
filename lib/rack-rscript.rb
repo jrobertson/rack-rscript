@@ -34,7 +34,7 @@ class RackRscript
   include RXFHelperModule
   using ColouredText
   
-  attr_reader :req
+  attr_reader :req, :rsc
   
   
   def initialize(log: nil, pkg_src: '', cache: 5, rsc_host: nil, 
@@ -73,7 +73,7 @@ class RackRscript
     end
 
     super() # required for app-routes initialize method to exectue
-    default_routes(@env, @params)    
+    default_routes(@env, @params || {})    
     
     @rsc = nil
 
@@ -88,7 +88,7 @@ class RackRscript
 #=end
   end
 
-  def call(env)
+  def call(env, testmode: false)
 
 
     @env = env
@@ -96,9 +96,14 @@ class RackRscript
     #raw_request = env['REQUEST_PATH']
 
     @log.info 'RackRscript/call: ' + env.inspect if @log
-    @req = Rack::Request.new(env)
-
-    @req_params = @req.params
+    
+    if testmode == false then
+      
+      @req = Rack::Request.new(env)
+      @req_params = @req.params
+      
+    end
+    
     default_routes(env,@params)
     
     request = if @pxlinks then
@@ -110,6 +115,7 @@ class RackRscript
     
     @log.info 'RackRscript/call/request: ' + request.inspect if @log
 #=begin        
+    puts 'request: ' + request.inspect if @debug
     run_request(request)
 #=end    
 #    [200, {"Content-Type" => "text/plain"}, [env.inspect]]
@@ -119,8 +125,9 @@ class RackRscript
     @rscript.reset
   end
 
-  def run_job(url, jobs, params={}, type=:get, *qargs)
+  def run_job(url, job, params={}, type=:get, *qargs)
 
+    puts 'inside run_job' if @debug
     @log.debug 'RackRscript/run_job/params: ' + params.inspect if @log
     @log.debug 'RackRscript/run_job/qargs: ' + qargs.inspect if @log
     
@@ -139,9 +146,20 @@ class RackRscript
       @params.merge! h
     end
     
-    @params.merge! @req.params
+    @params.merge! @req.params if @req
     @rscript.type = type
-    result, args = @rscript.read([url, jobs.split(/\s/), \
+    
+    if not @rscript.jobs(url).include?(job.to_sym) then
+      
+      if @rscript.jobs(url).include?(:job_missing) then
+        job = 'job_missing' 
+      else
+        [404, 'job not found']
+      end
+
+    end
+    
+    result, args = @rscript.read([url, '//job:' + job, \
       qargs].flatten)
 
     rws = self
@@ -149,14 +167,29 @@ class RackRscript
     req = @req if @req
     
     begin
+
+      if @debug then
+        puts @rscript.jobs(url).inspect 
+        puts 'job: ' + job.inspect
+        puts 'url: ' + url.inspect
+        puts '@initialized: ' + @initialized.inspect
+        bflag = @rscript.jobs(url).include?(:initialize) and \
+            !@initialized[url] and job != 'initialize'
+        puts 'bflag: ' + bflag.inspect
+      end
       
-      if @rscript.jobs(url).include? :initialize and 
-          !@initialized[url]  and jobs != 'initialize' then
-        @rscript.run([url, '//job:initialize'])
+      if @rscript.jobs(url).include?(:initialize) and 
+          !@initialized[url]  and job != 'initialize' then
+        puts 'before run initialize' if @debug
+        r2 = @rscript.read([url, '//job:initialize'])        
+        puts 'r2: ' + r2.inspect if @debug
+        eval r2.join
         @initialized[url] = true
       end
       
+
       r = eval result
+
       return r
 
     rescue Exception => e  
@@ -196,33 +229,37 @@ class RackRscript
     
     get '/do/:package/:job' do |package,job|
       @log.info 'RackRscript/route/do/package/job: ' + [package, job].inspect if @log
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params)  
+      run_job("%s%s.rsf" % [@url_base, package], job, params)  
     end    
 
-    get /\/(.*)\/do\/(\w+)\/(\w+)/ do |d, package,job|
-      run_job(("%s%s/%s.rsf" % [@url_base, d, package]), 
-              "//job:" + job, params) 
+    get /\/(.*)\/do\/(\w+)\/(\w+)$/ do |d, package,job|
+      run_job(("%s%s/%s.rsf" % [@url_base, d, package]), job, params)
     end    
+    
+    get /\/(.*)\/do\/(\w+)\/(\w+)\/(.*)/ do |d, package, job, raw_args|
+      args = raw_args.split('/')
+      run_job(("%s%s/%s.rsf" % [@url_base, d, package]), job, params, :get, args)
+    end      
 
     post '/do/:package/:job' do |package,job|
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, :post)  
+      run_job("%s%s.rsf" % [@url_base, package], job, params, :post)  
     end
     
     get '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
       args = raw_args.first[/[^\s\?]+/].to_s.split('/')[1..-1]
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, :get, args)
+      run_job("%s%s.rsf" % [@url_base, package], job, params, :get, args)
     end
 
     post '/do/:package/:job/*' do |package, job|
       raw_args = params[:splat]
       args = raw_args.first[/[^\s\?]+/].to_s.split('/')[1..-1]
-      run_job("%s%s.rsf" % [@url_base, package], "//job:" + job, params, :post, args)
+      run_job("%s%s.rsf" % [@url_base, package], job, params, :post, args)
     end
 
     get '/source/:package/:job' do |package,job|
       url = "%s%s.rsf" % [@url_base, package]
-      [@rscript.read([url, '//job:' + job]).first, 'text/plain']
+      [@rscript.read([url, job]).first, 'text/plain']
     end    
 
     get '/source/:package' do |package,job|
@@ -313,7 +350,8 @@ class RackRscript
     method_type = @env ? @env['REQUEST_METHOD'] : 'GET'
     content, content_type, status_code = run_route(request, method_type)    
     @log.info 'RackRscript/run_request/content: ' + content.inspect if @log
-    
+    #puts 'content: ' + content.inspect if @debug
+
     #@log.debug 'inside run_request' if @log
     if content.is_a? Redirect then
       
@@ -372,45 +410,9 @@ class RackRscript
   alias jumpto run_request
 
   private
-
-  def render99(name, type, opt={})
-    
-    options = {locals: {}}.merge!(opt)
-    locals = options.delete :locals
-    
-    unless @templates[:layout] then
-      template(:layout, type) { File.read('views/layout.' + type.to_s) }
-    end
-    
-    layout = Tilt[type.to_s].new(options) {|x| @templates[:layout][:content]}    
-
-    unless @templates[name] then
-      template(name, type) { File.read("views/%s.%s" % [name.to_s, type.to_s])}
-    end    
-
-    template = Tilt[type.to_s].new(options) {|x| @templates[name][:content]}
-    layout.render{ template.render(self, locals)}
-  end            
-  
+            
   def template(name, type=nil, &blk)
     @render.template name, type, &blk
-  end   
-  
-  def template99(name, type=nil, &blk)
-    @templates.merge!({name => {content: blk.call, type: type}})
-    @templates[name]
-  end                  
-
-  def tilt99(name, options={})
-    
-    options = {locals: {}}.merge!(opt)
-    locals = options.delete :locals
-    layout = Tilt[@templates[:layout][:type].to_s].new(options)\
-        {|x| @templates[:layout][:content]}
-    template = Tilt[@templates[name][:type].to_s].new(options) \
-        {|x| @templates[name][:content]}
-    layout.render{ template.render(self, locals)}
-    
-  end    
+  end     
   
 end
