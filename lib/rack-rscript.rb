@@ -13,6 +13,7 @@ require 'rscript'
 require 'app-routes'
 require 'uri'
 require 'polyrex-links'
+require 'nthrut'
 
 
 class Redirect
