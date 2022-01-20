@@ -43,14 +43,15 @@ class RackRscript
                  pxlinks: nil, debug: false, root: '', static: {})
 
     @log, @debug, @static = log, debug, static
-#=begin
-    puts '@app_root: ' + @app_root.inspect if @debug
+
     puts 'root: ' + root.inspect if @debug
+    puts 'pkg_Src: ' + pkg_src.inspect if @debug
 
     @params = {}
 
     @templates = {}
 
+    @log.debug 'pkg_src: ' + pkg_src.inspect if @log
     @rscript = RScriptRW.new log: log, pkg_src: pkg_src, cache: cache, debug: true
     @render = NThrut.new(self)
 
@@ -89,7 +90,7 @@ class RackRscript
 
     @root, @static = root, static
     @initialized = {}
-#=end
+
   end
 
   def call(env, testmode: false)
@@ -190,7 +191,6 @@ class RackRscript
         eval r2.join
         @initialized[url] = true
       end
-
 
       r = eval result
 
@@ -298,7 +298,7 @@ class RackRscript
       FileX.exists? @url_base
       filepath = @url_base
 
-      [Dir.glob(filepath + '/*.rsf').map{|x| x[/([^\/]+)\.rsf$/,1]}.to_json,\
+      [DirX.glob(filepath + '/*.rsf').map{|x| x[/([^\/]+)\.rsf$/,1]}.to_json,\
                                                             'application/json']
 
     end
@@ -313,7 +313,7 @@ class RackRscript
 
           path = raw_path
           puts 'path: ' + path.inspect if @debug
-          filepath = File.join(@app_root, @root, path )
+          filepath = File.join(@root, path )
 
         else
 
@@ -343,27 +343,17 @@ class RackRscript
         end
 
       end
+
     end
 
     get /^\/$/ do
 
       if @root.length > 0 then
         file = File.join(@root, 'index.html')
-        File.read file
+        FileX.read file
       else
         Time.now.inspect
       end
-
-    end
-
-    # file exists?
-    a = Dir.glob( File.join(@root.to_s, '*')).select do |x|
-      File::ftype(x) == 'directory'
-    end
-
-    get /^\/#{a.join('|')}/ do
-
-    'found' + a.inspect
 
     end
 
