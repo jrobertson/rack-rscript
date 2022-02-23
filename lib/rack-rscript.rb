@@ -14,6 +14,7 @@ require 'app-routes'
 require 'uri'
 require 'polyrex-links'
 require 'nthrut'
+require 'rxfreadwrite'
 
 
 class Redirect
@@ -27,12 +28,9 @@ end
 class RackRscriptError < Exception
 end
 
-
-
-
 class RackRscript
   include AppRoutes
-  include RXFHelperModule
+  include RXFReadWriteModule
   using ColouredText
 
   attr_reader :req, :rsc
@@ -60,7 +58,7 @@ class RackRscript
 
     if pxlinks then
 
-      src, _ = RXFHelper.read(pxlinks)
+      src, _ = RXFReader.read(pxlinks)
 
       if src =~ /^<\?/ then
 
@@ -283,7 +281,7 @@ class RackRscript
 
       begin
 
-        [RXFHelper.read(url).first,'text/plain']
+        [RXFReader.read(url).first,'text/plain']
 
       rescue
 
