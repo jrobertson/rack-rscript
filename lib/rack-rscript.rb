@@ -28,6 +28,9 @@ end
 class RackRscriptError < Exception
 end
 
+
+
+
 class RackRscript
   include AppRoutes
   include RXFReadWriteModule
@@ -415,6 +418,17 @@ class RackRscript
       proc = ct_list[content_type]
       proc ||= passthru_proc
       content, content_type = proc.call(content, content_type)
+
+      if content_type.is_a? Integer then
+
+        status_code = content_type.to_s
+        httpcodefile = File.join(@root, status_code + '.html')
+        if FileX.exists? httpcodefile then
+          content = FileX.read(httpcodefile)
+        else
+          content_type = 'text/plain'
+        end
+      end
 
       [status_code, {"Content-Type" => content_type}, [content]]
     end
